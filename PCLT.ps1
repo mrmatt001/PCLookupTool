@@ -18,12 +18,9 @@ $formRunspace.Open()
 $formRunspace.SessionStateProxy.SetVariable("syncHash", $syncHash)
 $Data = (Get-Date)
 $psCmd = [PowerShell]::Create().AddScript( {   
-#     [xml]$xaml = (Get-Content 'C:\Users\matt_\OneDrive - MJG IT CONSULTING LTD\PowerShell\PC Lookup Tool\PCLT2.xaml')
-     [xml]$xaml = (Get-Content ($syncHash.WorkingPath + "\PCLT.xaml"))
-
+    [xml]$xaml = (Get-Content ($syncHash.WorkingPath + "\PCLT.xaml"))
     $syncHash.SubmitPressed = $false
     $SyncHash.EndScript = $False
-
     $reader = (New-Object System.Xml.XmlNodeReader $xaml)
     $syncHash.Window = [Windows.Markup.XamlReader]::Load( $reader )
     $xaml.SelectNodes("//*[@Name]") | ForEach-Object { $syncHash.($_.Name) = $syncHash.Window.FindName($_.Name) }   ### This line grabs all the names and binds them as properties of $syncHash
@@ -34,6 +31,11 @@ $psCmd = [PowerShell]::Create().AddScript( {
             $syncHash.Window.Close()
             }))
         })
+    
+    ### Logic to trigger buttons during DO loop later on
+    $syncHash.Search_Button.add_click({ $syncHash.SearchPressed = $true })
+    $syncHash.SignIn_Button.add_click({ $syncHash.SignInPressed = $true })
+    
     
     # Hamburger icon 
     $syncHash.HamburgerImage = New-Object System.Windows.Controls.Image
@@ -46,9 +48,6 @@ $psCmd = [PowerShell]::Create().AddScript( {
         }))
 
     
-    ### Logic to trigger buttons during DO loop later on
-    $syncHash.SearchButton.add_click({ $syncHash.SearchPressed = $true })
-
     $appContext = New-Object System.Windows.Forms.ApplicationContext 
     [void][System.Windows.Forms.Application]::Run($appContext)
     $syncHash.Error = $Error
@@ -58,6 +57,8 @@ $data = $psCmd.BeginInvoke()
 
 do { start-sleep -MilliSeconds 100 } until ($syncHash.Window.IsVisible -eq $False)
 Set-ObjectsToHidden -RegExMatch '^Main_Button'
+$syncHash.SearchPressed = $false
+$syncHash.SignInPressed = $false
         
 $syncHash.Window.Dispatcher.invoke("Normal", [action][scriptblock]::create( {
     [System.Windows.Forms.Integration.ElementHost]::EnableModelessKeyboardInterop($syncHash.window)
@@ -67,16 +68,27 @@ $syncHash.Window.Dispatcher.invoke("Normal", [action][scriptblock]::create( {
         })
     $SyncHash.window.Show()
     $SyncHash.window.Activate()
-    $syncHash.SearchTextBox.Focus() | out-null 
+    $syncHash.Search_TextBox.Focus() | out-null 
     
     }))
 
 do
 {
     $syncHash.Window.Dispatcher.invoke("Normal", [action][scriptblock]::create( {
-        $syncHash.SearchTextBoxText = $syncHash.SearchTextBox.Text.Trim()
+        $syncHash.SearchTextBoxText = $syncHash.Search_TextBox.Text.Trim()
         }))
         
+    if ($syncHash.SignInPressed)
+    {
+        $syncHash.Window.Dispatcher.invoke("Normal", [action][scriptblock]::create( {
+            $syncHash.SignIn_UserName =     $syncHash.SignIn_UserNameTextBox.Text
+            $syncHash.SignIn_Password =     $syncHash.SignIn_PasswordPasswordBox.SecurePassword
+            }))
+        $SignInCredentials = New-Object -TypeName System.Management.Automation.PSCredential -ArgumentList $syncHash.SignIn_UserName, $syncHash.SignIn_Password
+        Test-Credential -Credential $SignInCredentials
+        $syncHash.SignInPressed = $false
+
+    }
     
     if ($syncHash.SearchPressed)
     {
@@ -99,7 +111,9 @@ do
                 $syncHash.("Main_Label" + ("{0:D2}" -f $syncHash.Counter) + "Content").Visibility = "Visible"
                 }))
         }
-
+        $syncHash.Window.Dispatcher.invoke("Normal", [action][scriptblock]::create( {
+            $syncHash.Search_TextBox.Text = ""
+            }))
         $syncHash.SearchPressed = $false
     }
 
