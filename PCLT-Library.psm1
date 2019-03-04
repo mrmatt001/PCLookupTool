@@ -105,3 +105,142 @@ Function Test-Credential {
         $principalContext.Dispose()
     }
 }
+
+function Set-CustomRegValue {
+    PARAM(
+    [STRING]$Path,
+    [STRING]$Name,
+    $Value
+    )
+    if (!(Get-Item $PCLTRegPath -ErrorAction SilentlyContinue)) 
+    { 
+        New-Item $PCLTRegPath | Out-Null 
+    }
+    New-ItemProperty -Path $PCLTRegPath -Name $Name -Value $Value -Force | Out-Null
+}
+function Get-CustomRegValue {
+    PARAM(
+    [STRING]$Path,
+    [STRING]$Value
+    )
+    if (Get-ItemProperty -Path $Path -Name $Value -ErrorAction SilentlyContinue) { return (Get-ItemProperty -Path $Path -Name $Value).$Value } else { return $false }
+}
+
+Function Get-WmiCustom([string]$Class,[string]$Value,[string]$ComputerName,[string]$Namespace = "root\cimv2",[int]$Timeout=10, [pscredential]$Credential) 
+{ 
+    $ConnectionOptions = new-object System.Management.ConnectionOptions
+    $EnumerationOptions = new-object System.Management.EnumerationOptions
+
+    if($Credential)
+    {
+        $ConnectionOptions.Username = $Credential.UserName;
+        $ConnectionOptions.SecurePassword = $Credential.Password;
+    }
+
+    $timeoutseconds = new-timespan -seconds $timeout 
+    $EnumerationOptions.set_timeout($timeoutseconds)
+    $assembledpath = "\\$Computername\$Namespace"
+    $Scope = new-object System.Management.ManagementScope $assembledpath, $ConnectionOptions 
+    $WMIConnection = $true
+    try 
+    {
+        $Scope.Connect()
+    }
+    catch 
+    {
+        $WMIConnection = $false    
+    }
+
+    if ($WMIConnection)
+    {
+        $querystring = "SELECT * FROM " + $class 
+        $Query = new-object System.Management.ObjectQuery $querystring 
+        $searcher = new-object System.Management.ManagementObjectSearcher 
+        $searcher.set_options($EnumerationOptions) 
+        $searcher.Query = $Query 
+        $searcher.Scope = $Scope
+        $result = $searcher.get()
+        return $result
+    }
+    else 
+    {
+        return $false    
+    }
+}
+
+Function Get-WmiCustomValue([string]$Class,[string]$Value,[string]$ComputerName,[string]$Namespace = "root\cimv2",[int]$Timeout=10, [pscredential]$Credential) 
+{ 
+    $ConnectionOptions = new-object System.Management.ConnectionOptions
+    $EnumerationOptions = new-object System.Management.EnumerationOptions
+
+    if($Credential)
+    {
+        $ConnectionOptions.Username = $Credential.UserName;
+        $ConnectionOptions.SecurePassword = $Credential.Password;
+    }
+
+    $timeoutseconds = new-timespan -seconds $timeout 
+    $EnumerationOptions.set_timeout($timeoutseconds)
+    $assembledpath = "\\$Computername\$Namespace"
+    $Scope = new-object System.Management.ManagementScope $assembledpath, $ConnectionOptions 
+    $WMIConnection = $true
+    try 
+    {
+        $Scope.Connect()
+    }
+    catch 
+    {
+        $WMIConnection = $false    
+    }
+
+    if ($WMIConnection)
+    {
+        $querystring = "SELECT $Value FROM " + $class 
+        $Query = new-object System.Management.ObjectQuery $querystring 
+        $searcher = new-object System.Management.ManagementObjectSearcher 
+        $searcher.set_options($EnumerationOptions) 
+        $searcher.Query = $Query 
+        $searcher.Scope = $Scope
+
+        $result = $searcher.get().$Value
+
+        return $result
+    }
+    else 
+    {
+        return $false    
+    }
+}
+
+Function Get-PCStatus 
+{
+    PARAM(
+    [STRING]$ComputerName
+    )
+    $NSLookupStatus = $false
+    try
+    {
+        foreach ($Line in (nslookup $ComputerName 2> NULL))
+        {
+            if ($Line -match 'Name:') { $NSLookupStatus = $true }
+        }
+    }
+    catch
+    {}
+
+    if ($NSLookupStatus)
+    {
+        if ((Get-WmiCustomValue -Class Win32_ComputerSystem -ComputerName $ComputerName -Value Name -Timeout 5) -eq $ComputerName)
+        {
+            return "Valid PC"
+        }
+        else
+        {
+            return $false
+        }
+    }
+    else
+    {
+        return $false
+    }
+}
