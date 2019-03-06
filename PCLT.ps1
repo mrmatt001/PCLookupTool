@@ -260,30 +260,33 @@ do
             $SQLDBColumn =  (Get-CustomRegValue -Path $PCLTRegPath -Value SQLDBColumn)
             $SQLQuery =     (Get-CustomRegValue -Path $PCLTRegPath -Value SQLQuery)
             Set-ObjectsToHidden -RegExMatch '^Main_Label'
+            Set-ObjectsToHidden -RegExMatch '^Main_Button'
             $HashTable = @{}
             $Query = $SQLQuery + " " + $SQLDBTable + " WHERE " + $SQLDBColumn + " LIKE '%" + $syncHash.SearchTextBoxText + "%'"
             $HashTable = (Get-MainLabelsAndContentFromSQL -query $Query -DBServer $SQLDBServer -DBName $SQLDBName)
-            
+            $HashTable = $HashTable.GetEnumerator() | Where-Object { $_.Name -ne $SQLDBColumn }| Sort-Object -Property name
             #Set Computer Name
             $PCNameQuery = "SELECT " + $SQLDBColumn + " FROM " + $SQLDBTable + " WHERE " + $SQLDBColumn + " LIKE '%" + $syncHash.SearchTextBoxText + "%'"
             $syncHash.FoundPC = (Read-FromSQL -DBServer $SQLDBServer -DBName $SQLDBName -Query $PCNameQuery).$SQLDBColumn
-            $syncHash.Window.Dispatcher.invoke("Normal", [action][scriptblock]::create( {
-                $syncHash.("Main_Label01").Content = "Computer Name: "
-                $syncHash.("Main_Label01Content").Content = $syncHash.FoundPC
-                $syncHash.("Main_Label01").Visibility = "Visible"
-                $syncHash.("Main_Label01Content").Visibility = "Visible"
-                }))
-
+            if ($null -ne $syncHash.FoundPC)
+            {
+                $syncHash.Window.Dispatcher.invoke("Normal", [action][scriptblock]::create( {
+                    $syncHash.("Main_Label01").Content = "Computer Name: "
+                    $syncHash.("Main_Label01Content").Content = $syncHash.FoundPC
+                    $syncHash.("Main_Label01").Visibility = "Visible"
+                    $syncHash.("Main_Label01Content").Visibility = "Visible"
+                    }))
+            }
             if ($HashTable.Count -gt 0)
             {
                 $syncHash.Counter = 1
-                foreach ($Entry in $HashTable.keys) 
+                foreach ($Entry in $HashTable) 
                 { 
                     $syncHash.Counter++
                     $Null = $syncHash.Label
                     $Null = $syncHash.Content
-                    $syncHash.Label = $Entry + ": "
-                    $syncHash.Content = $HashTable.$Entry
+                    $syncHash.Label = ($Entry.Name -replace "{\d+}","") + ": "
+                    $syncHash.Content = $Entry.Value
                     $syncHash.Window.Dispatcher.invoke("Normal", [action][scriptblock]::create( {
                         $syncHash.("Main_Label" + ("{0:D2}" -f $syncHash.Counter)).Content = $syncHash.Label
                         $syncHash.("Main_Label" + ("{0:D2}" -f $syncHash.Counter) + "Content").Content = $syncHash.Content
@@ -301,6 +304,11 @@ do
                 if (Get-PCStatus -ComputerName $syncHash.FoundPC)
                 {
                     Write-Host "Trigger buttons"
+                    Set-ObjectsToVisible -RegExMatch '^Main_Button01'
+                    Set-ObjectsToVisible -RegExMatch '^Main_Button02'
+                    Set-ObjectsToVisible -RegExMatch '^Main_Button03'
+                    Set-ObjectsToVisible -RegExMatch '^Main_Button04'
+                    Set-ObjectsToVisible -RegExMatch '^Main_Button05'
                 }   
             }
         }

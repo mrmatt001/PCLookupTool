@@ -58,6 +58,17 @@ Function Set-ObjectsToHidden {
     }
 }
 
+Function Set-ObjectsToVisible {
+    PARAM($RegExMatch)
+    foreach ($LabelsToHide in $syncHash.Keys | Where-Object { $_ -match $RegExMatch}) 
+    { 
+        $syncHash.LabelsToHide = $LabelsToHide
+        $syncHash.Window.Dispatcher.invoke("Normal", [action][scriptblock]::create( {
+            $syncHash.($syncHash.LabelsToHide).Visibility = "Visible"
+            }))
+    }
+}
+
 Function Test-Credential {
     [OutputType([Bool])]
     
